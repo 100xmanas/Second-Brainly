@@ -2,7 +2,8 @@ import express, { type Response } from "express";
 import z from "zod";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { Content, User } from "./db.js";
+import { v4 as uuidv4 } from 'uuid';
+import { Content, User, Link } from "./db.js";
 import "dotenv/config";
 import { auth, type AuthRequest } from "./middleware.js";
 
@@ -21,7 +22,7 @@ app.post("/api/v1/signup", async (req, res) => {
     if (!parsedData.success) {
       return res.status(400).json({
         success: false,
-        msg: "Validation failed!",
+        message: "Validation failed!",
       });
     }
 
@@ -40,7 +41,7 @@ app.post("/api/v1/signup", async (req, res) => {
 
     res.status(200).json({
       success: true,
-      msg: "New user created successfully.",
+      message: "New user created successfully.",
     });
   } catch (error) {
     console.log(error);
@@ -61,7 +62,7 @@ app.post("/api/v1/signin", async (req, res) => {
     if (!parsedData.success) {
       return res.status(400).json({
         success: false,
-        msg: "Validation failed!",
+        message: "Validation failed!",
       });
     }
 
@@ -88,7 +89,7 @@ app.post("/api/v1/signin", async (req, res) => {
 
     res.status(200).json({
       success: true,
-      msg: "User sign in successfully",
+      message: "User sign in successfully",
       token,
     });
   } catch (error) {
@@ -112,7 +113,7 @@ app.post("/api/v1/content", auth, async (req: AuthRequest, res: Response) => {
     if (!parsedData.success) {
       return res.status(401).json({
         success: false,
-        msg: "Validation failed!",
+        message: "Validation failed!",
       });
     }
 
@@ -128,7 +129,7 @@ app.post("/api/v1/content", auth, async (req: AuthRequest, res: Response) => {
 
     res.status(200).json({
       success: true,
-      msg: "New content added",
+      message: "New content added",
     });
   } catch (error) {
     console.log(error);
@@ -152,7 +153,7 @@ app.get("/api/v1/contents", auth, async (req: AuthRequest, res: Response) => {
 
     res.json({
       success: true,
-      msg: "All documents retrieved successfully",
+      message: "All documents retrieved successfully",
       contents,
     });
   } catch (error) {
@@ -176,7 +177,7 @@ app.delete(
       if (!contentId) {
         return res.status(401).json({
           success: false,
-          msg: "Content not find",
+          message: "Content not find",
         });
       }
 
@@ -185,7 +186,7 @@ app.delete(
 
       res.status(200).json({
         success: true,
-        msg: "Content deleted successfully",
+        message: "Content deleted successfully",
       });
     } catch (error) {
       console.log(error);
@@ -194,14 +195,40 @@ app.delete(
   }
 );
 
-// Create a shareable link for your second brain
-app.post("/api/v1/brain/share", async (req, res) => {
+// Create a shareable link for your second brain (OR Share Content Link)
+app.post("/api/v1/brain/share",auth, async (req: AuthRequest, res: Response) => {
   const { share } = req.body;
 
-  
+  if(share){
+    //check if link is available?
+
+    const existingLink = await Link.findOne({userId: req.userId})
+    if(existingLink){
+      return res.status(200).json({
+        success: true,
+        message: "Link created",
+        link:existingLink.contentId
+      })
+    }
+
+    //generate the link
+    const contentId = uuidv4()
+    await Link.create({userId: req.userId, contentId})
+    return res.status(200).json({
+        success: true,
+        message: "Link created",
+        link:contentId
+    })
+  } else {
+    await Link.deleteOne({userId: req.userId})
+    return res.status(200).json({
+        success: true,
+        message: "Removed link",
+    })
+  }
 });
 
-// Fetch another user's shared brain content
+// Fetch another user's shared brain content (OR Get Shared Content)
 app.get("/api/v1/brain/:shareLink", (req, res) => {});
 
 app.listen(process.env.PORT, () => {
