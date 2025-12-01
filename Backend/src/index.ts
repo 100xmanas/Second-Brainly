@@ -2,7 +2,7 @@ import express, { type Response } from "express";
 import z from "zod";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
 import { Content, User, Link } from "./db.js";
 import "dotenv/config";
 import { auth, type AuthRequest } from "./middleware.js";
@@ -196,40 +196,91 @@ app.delete(
 );
 
 // Create a shareable link for your second brain (OR Share Content Link)
-app.post("/api/v1/brain/share",auth, async (req: AuthRequest, res: Response) => {
-  const { share } = req.body;
+app.post(
+  "/api/v1/brain/share",
+  auth,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { share } = req.body;
 
-  if(share){
-    //check if link is available?
+      if (share) {
+        //check if link is available?
 
-    const existingLink = await Link.findOne({userId: req.userId})
-    if(existingLink){
-      return res.status(200).json({
-        success: true,
-        message: "Link created",
-        link:existingLink.contentId
-      })
+        const existingLink = await Link.findOne({ userId: req.userId });
+        if (existingLink) {
+          return res.status(200).json({
+            success: true,
+            message: "Link created",
+            link: existingLink.hash,
+          });
+        }
+
+        //generate the link
+        const hash = uuidv4();
+        await Link.create({ userId: req.userId, contentId });
+        return res.status(200).json({
+          success: true,
+          message: "Link created",
+          contentId: hash,
+        });
+      } else {
+        await Link.deleteOne({ userId: req.userId });
+        return res.status(200).json({
+          success: true,
+          message: "sharing is disabled",
+        });
+      }
+    } catch (error) {
+      console.log(error);
+
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+      });
     }
-
-    //generate the link
-    const contentId = uuidv4()
-    await Link.create({userId: req.userId, contentId})
-    return res.status(200).json({
-        success: true,
-        message: "Link created",
-        link:contentId
-    })
-  } else {
-    await Link.deleteOne({userId: req.userId})
-    return res.status(200).json({
-        success: true,
-        message: "Removed link",
-    })
   }
-});
+);
 
 // Fetch another user's shared brain content (OR Get Shared Content)
-app.get("/api/v1/brain/:shareLink", (req, res) => {});
+app.get("/api/v1/brain/:shareLink", async (req, res) => {
+  try {
+    const hash = req.params.shareLink;
+
+    const link = await Link.findOne({ hash });
+
+    if (!link) {
+      return res.status(404).json({
+        success: false,
+        message: "Share link is invalid",
+      });
+    }
+
+    // Fetch content and user details for the shareable link.
+    const contents = await Content.find({ userId: link.userId });
+    const user = await User.findOne({ _id: link.userId }); // check
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Fetched another user's shared brain contents",
+      username: user.username,
+      contents,
+    });
+  } catch (error) {
+    console.log(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
 
 app.listen(process.env.PORT, () => {
   console.log(`🎤 Server is up and running on port ${process.env.PORT}`);

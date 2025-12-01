@@ -37,7 +37,7 @@ const TagSchema = new Schema({
 });
 
 const LinkSchema = new Schema({
-  contentId: { type: String, required: true },
+  hash: { type: String, required: true },
   userId: { type: mongoose.Types.ObjectId, ref: "User", required: true },
 });
 
