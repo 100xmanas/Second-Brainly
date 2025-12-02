@@ -8,6 +8,9 @@ import "dotenv/config";
 import { auth, type AuthRequest } from "./middleware.js";
 
 const app = express();
+app.use(express.json())
+
+const PORT = process.env.PORT || 3000
 
 // Sign up
 app.post("/api/v1/signup", async (req, res) => {
@@ -32,7 +35,7 @@ app.post("/api/v1/signup", async (req, res) => {
 
     if (exitingUser) return res.status(409).send("User already exists");
 
-    const hashedPassword = bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     await User.create({
       username,
@@ -149,7 +152,7 @@ app.get("/api/v1/contents", auth, async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const contents = await Content.find({ _id: userId });
+    const contents = await Content.find({ userId });
 
     res.json({
       success: true,
@@ -177,12 +180,21 @@ app.delete(
       if (!contentId) {
         return res.status(401).json({
           success: false,
-          message: "Content not find",
+          message: "Content id is required",
+        });
+      }
+
+      const content = await Content.findOne({ _id: contentId , userId: req.userId })
+
+       if (!content) {
+        return res.status(404).json({
+          success: false,
+          message: "Content not found or not owned by user",
         });
       }
 
       // Delete content based on contentId and userId.
-      await Content.findByIdAndDelete({ contentId, userId: req.userId });
+      await Content.findOneAndDelete({ _id: contentId , userId: req.userId });
 
       res.status(200).json({
         success: true,
@@ -217,17 +229,17 @@ app.post(
 
         //generate the link
         const hash = uuidv4();
-        await Link.create({ userId: req.userId, contentId });
+        await Link.create({ userId: req.userId, hash });
         return res.status(200).json({
           success: true,
-          message: "Link created",
-          contentId: hash,
+          message: "Link is created",
+          link: hash,
         });
       } else {
         await Link.deleteOne({ userId: req.userId });
         return res.status(200).json({
           success: true,
-          message: "sharing is disabled",
+          message: "Success, sharing is disabled",
         });
       }
     } catch (error) {
@@ -282,6 +294,6 @@ app.get("/api/v1/brain/:shareLink", async (req, res) => {
   }
 });
 
-app.listen(process.env.PORT, () => {
-  console.log(`🎤 Server is up and running on port ${process.env.PORT}`);
+app.listen(3000, () => {
+  console.log(`🎤 Server is up and running on port ${PORT}`);
 });
